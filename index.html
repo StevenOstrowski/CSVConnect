@@ -1,109 +1,76 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CSV Loader Pro</title>
-    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #fff; }
-        .btn { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 2px; }
-        #status { margin-top: 15px; font-size: 12px; color: #d83b01; font-family: monospace; white-space: pre-wrap; }
-        .success { color: #107c10 !important; }
-    </style>
+    <title>CSV Loader - Drag & Drop</title>
+    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #f4f4f4; text-align: center; }
+        #drop-area {
+            border: 2px dashed #0078d4;
+            border-radius: 10px;
+            padding: 40px 10px;
+            background: white;
+            cursor: pointer;
+        }
+        #status { margin-top: 15px; font-size: 12px; color: #333; font-family: monospace; }
+    </style>
 </head>
 <body>
-    <h3>CSV Point Loader</h3>
-    <button class="btn" onclick="pickFile()">Select CSV from Project</button>
-    <div id="status">Connecting to viewer...</div>
+    <h3>CSV Point Loader</h3>
+    <div id="drop-area">
+        <p>Drag CSV file here<br>or click to select from PC</p>
+        <input type="file" id="fileElem" accept=".csv" style="display:none" onchange="handleFiles(this.files)">
+    </div>
+    <div id="status">Connecting...</div>
 
-    <script>
-        let connectAPI;
+    <script>
+        let connectAPI;
 
-async function init() {
-        try {
-            // Start the connection
-            connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-            
-            // This checks exactly what Trimble has allowed
-            const uiModule = connectAPI.ui;
-            const hasPicker = uiModule && typeof uiModule.showFilePicker === 'function';
-            
-            if (hasPicker) {
-                setStatus("Connected! Permissions granted.", true);
-            } else {
-                // If this shows up, Trimble is ignoring your manifest.json permissions
-                setStatus("Handshake OK, but Picker is MISSING. \nTry deleting and re-adding the extension in Settings.");
+        async function init() {
+            try {
+                connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
+                document.getElementById('status').innerText = "Connected! Ready for file.";
+            } catch (e) {
+                document.getElementById('status').innerText = "Connection failed.";
             }
-        } catch (e) {
-            setStatus("Connection failed: " + e.message);
         }
-    }
 
-        function setStatus(msg, isSuccess = false) {
-            const el = document.getElementById('status');
-            el.innerText = msg;
-            el.className = isSuccess ? 'success' : '';
-        }
+        // Handle the Drop Area
+        const dropArea = document.getElementById('drop-area');
+        dropArea.onclick = () => document.getElementById('fileElem').click();
 
-  async function pickFile() {
-    try {
-        // 1. Check if the UI module was actually injected by Trimble
-        if (!connectAPI.ui || typeof connectAPI.ui.showFilePicker !== 'function') {
-            throw new Error("UI FilePicker is not authorized. Please remove and re-add the extension in Project Settings.");
-        }
+        function handleFiles(files) {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => processCSV(e.target.result);
+            reader.readAsText(file);
+        }
 
-        const files = await connectAPI.ui.showFilePicker({
-            project: true,
-            multiSelect: false
-        });
+        async function processCSV(data) {
+            const rows = data.split(/\r?\n/);
+            const markers = [];
+            rows.forEach((row, i) => {
+                const cols = row.split(',');
+                if (cols.length >= 4) {
+                    const [name, x, y, z] = cols.map(c => c.trim());
+                    if (!isNaN(parseFloat(x))) {
+                        markers.push({
+                            id: "pt_" + i + "_" + Date.now(),
+                            title: name || "Point " + i,
+                            position: { x: parseFloat(x), y: parseFloat(y), z: parseFloat(z) },
+                            color: "#FF0000"
+                        });
+                    }
+                }
+            });
 
-        if (files && files.length > 0) {
-            const file = files[0];
-            setStatus("Loading: " + file.name + "...");
+            if (markers.length > 0) {
+                await connectAPI.viewer.addIcon(markers);
+                document.getElementById('status').innerText = "Loaded " + markers.length + " points!";
+            }
+        }
 
-            // Use the internal data fetcher to bypass CORS
-            const fileBlob = await connectAPI.data.getFileContent(file.id);
-            const csvData = await fileBlob.text();
-            
-            processCSV(csvData);
-        }
-    } catch (err) {
-        console.error("PickFile Error:", err);
-        setStatus("Error: " + err.message);
-    }
-}
-        async function processCSV(data) {
-            const rows = data.split(/\r?\n/);
-            const markers = [];
-
-            rows.forEach((row, i) => {
-                const cols = row.split(',');
-                if (cols.length >= 4) {
-                    const [name, x, y, z] = cols.map(c => c.trim());
-                    const px = parseFloat(x);
-                    const py = parseFloat(y);
-                    const pz = parseFloat(z);
-
-                    if (!isNaN(px) && !isNaN(py) && !isNaN(pz)) {
-                        markers.push({
-                            id: "pt_" + i + "_" + Date.now(),
-                            title: name || "Point " + i,
-                            position: { x: px, y: py, z: pz },
-                            color: "#FF0000"
-                        });
-                    }
-                }
-            });
-
-            if (markers.length > 0) {
-                await connectAPI.viewer.addIcon(markers);
-                setStatus("Successfully loaded " + markers.length + " points!", true);
-            } else {
-                setStatus("Error: No valid X,Y,Z data found in the CSV.");
-            }
-        }
-
-        init();
-    </script>
+        init();
+    </script>
 </body>
 </html>
-
