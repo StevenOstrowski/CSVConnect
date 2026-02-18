@@ -1,45 +1,46 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Sphere Loader</title>
-    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
-    <style>
-        body { font-family: sans-serif; padding: 15px; background: white; }
-        .btn { width: 100%; padding: 10px; margin: 5px 0; cursor: pointer; font-weight: bold; color: white; border: none; }
-        #status { padding: 10px; background: #eee; margin-bottom: 10px; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div id="status">Connecting to Trimble...</div>
-    <button class="btn" style="background:#0078d4" onclick="testSphere()">Test: Create Green Sphere</button>
+<script>
+    let api;
     
-    <script>
-        let api;
-        async function init() {
-            try {
-                api = await TrimbleConnectWorkspace.connect(window.parent);
-                document.getElementById('status').innerText = "✅ Connected!";
-            } catch (e) {
-                document.getElementById('status').innerText = "❌ Connection Error";
-            }
+    async function init() {
+        const statusBox = document.getElementById('status');
+        try {
+            // We pass an empty object or specific config to help the handshake
+            api = await TrimbleConnectWorkspace.connect(
+                window.parent, 
+                (event) => { return true; }, // Authorize all message events
+                30000 // Timeout
+            );
+            statusBox.innerText = "✅ Connected!";
+            statusBox.className = "success-msg";
+        } catch (e) {
+            console.error("Connection failed", e);
+            statusBox.innerText = "❌ Connection Failed - Check Console";
         }
-        async function testSphere() {
+    }
+
+    async function testSphere() {
+        try {
+            // Force a check of the objects property
             if (!api.viewer || !api.viewer.objects) {
-                alert("Permission 'viewer.objects' missing in manifest!");
+                console.error("Available API:", api);
+                alert("Permission Error: 'viewer.objects' not found. Ensure manifest is correctly loaded.");
                 return;
             }
+
             const sphere = [{
                 id: "test_" + Date.now(),
                 type: "sphere",
-                radius: 1.5,
-                position: {x:0, y:0, z:0},
+                radius: 2.0,
+                position: { x: 0, y: 0, z: 0 },
                 color: { r: 0, g: 255, b: 0, a: 255 }
             }];
+
             await api.viewer.objects.add(sphere);
-            document.getElementById('status').innerText = "Sphere Created!";
+            document.getElementById('status').innerText = "Sphere Created at 0,0,0!";
+        } catch (err) {
+            alert("Viewer Error: " + err.message);
         }
-        window.onload = init;
-    </script>
-</body>
-</html>
+    }
+
+    window.onload = init;
+</script>
