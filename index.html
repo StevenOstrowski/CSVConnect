@@ -33,30 +33,31 @@
             el.className = isSuccess ? 'success' : '';
         }
 
-        async function pickFile() {
+      async function pickFile() {
             try {
                 const files = await connectAPI.ui.showFilePicker();
                 if (!files || files.length === 0) return;
                 
                 const file = files[0];
-                setStatus("Fetching download link for: " + file.name + "...");
-                
-                // 1. Get the secure link
-                const downloadData = await connectAPI.data.getFileDownloadUrl(file.id);
-                
-                // 2. Fetch the file content
-                const response = await fetch(downloadData.url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP Error: ${response.status} - Check if the file is public or restricted.`);
-                }
+                setStatus("Downloading: " + file.name + "...");
 
-                const csvData = await response.text();
+                // NEW METHOD: Use the API to get the file stream/blob directly
+                // This avoids CORS issues because the Parent (Trimble) does the work
+                const fileBlob = await connectAPI.data.getFileContent(file.id);
+                
+                // Convert the blob to text
+                const csvData = await fileBlob.text();
+                
+                setStatus("Parsing data...");
                 processCSV(csvData);
 
             } catch (err) {
                 console.error(err);
                 setStatus("Error: " + err.message);
+                // If it fails, let's see if it's a permission issue
+                if(err.message.includes("permission")) {
+                    setStatus("Error: Extension needs 'data.read' permission in manifest.");
+                }
             }
         }
 
@@ -95,3 +96,4 @@
     </script>
 </body>
 </html>
+
