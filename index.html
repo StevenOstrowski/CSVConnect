@@ -18,42 +18,49 @@
         .btn-clear { background: #d83b01; }
         #status { margin-top: 15px; font-size: 13px; font-weight: 500; }
         .success { color: #107c10; }
+        .error { color: #d83b01; }
         .sample-link { display: block; margin-top: 20px; font-size: 11px; color: #0078d4; text-decoration: none; text-align: center;}
     </style>
 </head>
 <body>
     <h3>CSV Point Loader</h3>
     
-    <div id="drop-zone">
+    <div id="drop-zone" id="dropZone">
         <p><b>Drag & Drop CSV</b><br>or click to browse</p>
         <input type="file" id="fileInput" accept=".csv" style="display:none">
     </div>
 
-    <div id="status">Connected! Ready.</div>
+    <div id="status">Connecting...</div>
 
     <button class="btn btn-zoom" onclick="zoomToPoints()">🔭 Zoom to Points</button>
     <button class="btn btn-clear" onclick="clearPoints()">🗑️ Clear All</button>
 
-    <a href="#" class="sample-link" onclick="downloadSample()">📥 Download CSV Template</a>
+    <a href="#" class="sample-link" onclick="downloadSample()">📥 Download Template</a>
 
     <script>
         let connectAPI;
-        let pointPositions = [];
         let loadedPointIds = [];
+        let pointPositions = [];
 
         async function init() {
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-            } catch (e) { document.getElementById('status').innerText = "Connection failed."; }
+                document.getElementById('status').innerText = "Connected! Ready for file.";
+            } catch (e) { 
+                document.getElementById('status').innerText = "Connection failed."; 
+            }
         }
 
-        // File Handling
         const dz = document.getElementById('drop-zone');
         const fi = document.getElementById('fileInput');
         dz.onclick = () => fi.click();
         dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('hover'); };
         dz.ondragleave = () => dz.classList.remove('hover');
-        dz.ondrop = (e) => { e.preventDefault(); dz.classList.remove('hover'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); };
+        dz.ondrop = (e) => {
+            e.preventDefault();
+            dz.classList.remove('hover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        };
         fi.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
         function handleFile(file) {
@@ -76,11 +83,10 @@
                         const id = "pt_" + Date.now() + "_" + i;
                         const pos = { x: px, y: py, z: pz };
                         markers.push({ 
-                            id, 
+                            id: id, 
                             title: name || `Pt ${i}`, 
                             position: pos, 
-                            color: "#FF0000",
-                            size: 40 // Larger markers
+                            color: "#FF0000" 
                         });
                         loadedPointIds.push(id);
                         pointPositions.push(pos);
@@ -89,19 +95,20 @@
             });
 
             if (markers.length > 0) {
-                // Use the modern icons.add API
-                await connectAPI.viewer.icons.add(markers);
-                document.getElementById('status').innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
+                try {
+                    // Modern API call
+                    await connectAPI.viewer.icons.add(markers);
+                    document.getElementById('status').innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
+                } catch (err) {
+                    document.getElementById('status').innerHTML = `<span class="error">Viewer Error: ${err.message || 'Check permissions'}</span>`;
+                }
             }
         }
 
         async function zoomToPoints() {
             if (pointPositions.length === 0) return;
-            // Calculate center of points
             const avg = pointPositions.reduce((acc, p) => ({x: acc.x + p.x, y: acc.y + p.y, z: acc.z + p.z}), {x:0, y:0, z:0});
             const center = { x: avg.x/pointPositions.length, y: avg.y/pointPositions.length, z: avg.z/pointPositions.length };
-            
-            // Tell the viewer to look at the center of the points
             await connectAPI.viewer.camera.setTarget(center);
         }
 
@@ -110,7 +117,7 @@
                 await connectAPI.viewer.icons.remove(loadedPointIds);
                 loadedPointIds = [];
                 pointPositions = [];
-                document.getElementById('status').innerText = "Points cleared.";
+                document.getElementById('status').innerText = "Cleared.";
             }
         }
 
