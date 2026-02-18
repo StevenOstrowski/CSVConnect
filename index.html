@@ -1,63 +1,65 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>3D Sphere CSV Loader Pro</title>
+    <title>3D Sphere Loader - Diagnostic</title>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 15px; background: #fff; color: #333; }
-        #drop-zone {
-            border: 2px dashed #0078d4; border-radius: 8px; padding: 25px 10px;
-            text-align: center; background: #f0f7ff; cursor: pointer; transition: 0.3s;
-        }
-        #drop-zone:hover { background: #d0e7ff; }
-        
-        .control-group { margin: 15px 0; padding: 10px; background: #f3f2f1; border-radius: 4px; }
-        label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; }
-        input[type="range"] { width: 100%; cursor: pointer; }
-        
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #fff; }
+        .box { border: 2px dashed #0078d4; padding: 20px; text-align: center; background: #f0f7ff; cursor: pointer; }
         .btn { color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 2px; margin-top: 8px; font-weight: bold; }
-        .btn-zoom { background: #107c10; }
-        .btn-clear { background: #d83b01; }
-        
-        #status { margin-top: 15px; font-size: 13px; font-weight: 500; min-height: 20px; }
-        .success { color: #107c10; }
-        .error { color: #d83b01; border-left: 3px solid #d83b01; padding-left: 5px; }
+        #status { margin-top: 15px; font-size: 12px; padding: 8px; border-radius: 4px; }
+        .err { background: #fde7e9; color: #d83b01; border: 1px solid #d83b01; }
+        .ok { background: #dff6dd; color: #107c10; border: 1px solid #107c10; }
     </style>
 </head>
 <body>
-    <h3>3D Sphere CSV Loader</h3>
+    <h3>3D Sphere Diagnostic</h3>
     
-    <div id="drop-zone" onclick="document.getElementById('fileInput').click()">
-        <p><b>Drag & Drop CSV</b><br>to create 3D Spheres</p>
-        <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+    <div class="box" onclick="document.getElementById('fi').click()">
+        <b>Drop CSV Here</b>
+        <input type="file" id="fi" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
     </div>
 
-    <div class="control-group">
-        <label>Sphere Radius: <span id="radiusVal">0.2</span>m</label>
-        <input type="range" id="radiusSlider" min="0.05" max="5.0" step="0.05" value="0.2" oninput="updateRadiusLabel(this.value)">
-    </div>
+    <div id="status">Initializing...</div>
 
-    <div id="status">Connecting...</div>
-
-    <button class="btn btn-zoom" onclick="zoomToPoints()">🔭 Zoom to Spheres</button>
-    <button class="btn btn-clear" onclick="clearPoints()">🗑️ Clear All</button>
+    <button class="btn" style="background:#0078d4" onclick="testSphere()">Create Test Sphere at 0,0,0</button>
+    <button class="btn" style="background:#107c10" onclick="zoomToPoints()">🔭 Zoom to Points</button>
+    <button class="btn" style="background:#d83b01" onclick="clearPoints()">🗑️ Clear All</button>
 
     <script>
         let connectAPI;
-        let loadedObjectIds = [];
-        let pointPositions = [];
+        let loadedIds = [];
+        let positions = [];
 
         async function init() {
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-                document.getElementById('status').innerText = "Connected! Ready for CSV.";
-            } catch (e) { 
-                document.getElementById('status').innerText = "Connection failed."; 
-            }
+                const canDoObjects = !!(connectAPI.viewer && connectAPI.viewer.objects);
+                if (canDoObjects) {
+                    setStat("✅ Viewer Ready. Drag file or click Test.", "ok");
+                } else {
+                    setStat("❌ ERROR: Objects Module missing. Delete and re-add extension in Settings!", "err");
+                }
+            } catch (e) { setStat("Connection Failed.", "err"); }
         }
 
-        function updateRadiusLabel(val) {
-            document.getElementById('radiusVal').innerText = val;
+        function setStat(txt, cls) {
+            const s = document.getElementById('status');
+            s.innerText = txt;
+            s.className = cls;
+        }
+
+        async function testSphere() {
+            const id = "test_" + Date.now();
+            const sphere = [{
+                id: id, type: "sphere", radius: 2.0, // Big sphere
+                position: {x:0, y:0, z:0},
+                color: { r: 0, g: 255, b: 0, a: 255 } // Green
+            }];
+            await connectAPI.viewer.objects.add(sphere);
+            loadedIds.push(id);
+            positions.push({x:0, y:0, z:0});
+            setStat("Green Sphere added at 0,0,0", "ok");
         }
 
         function handleFile(file) {
@@ -67,72 +69,33 @@
         }
 
         async function processCSV(data) {
-            const status = document.getElementById('status');
-            const currentRadius = parseFloat(document.getElementById('radiusSlider').value);
-            const rows = data.split(/\r?\n/);
+            const rows = data.split(/\n/);
             const spheres = [];
-            
-            // Clear previous points positions for the new zoom calculation
-            pointPositions = [];
-
             rows.forEach((row, i) => {
-                const cols = row.split(',');
-                if (cols.length >= 4) {
-                    const [name, x, y, z] = cols.map(c => c.trim());
-                    const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
-                    
-                    if (!isNaN(px)) {
-                        const id = "sph_" + Date.now() + "_" + i;
-                        const pos = { x: px, y: py, z: pz };
-                        
-                        spheres.push({
-                            id: id,
-                            type: "sphere",
-                            position: pos,
-                            radius: currentRadius,
-                            color: { r: 255, g: 0, b: 0, a: 255 } // Red
-                        });
-                        
-                        loadedObjectIds.push(id);
-                        pointPositions.push(pos);
-                    }
+                const c = row.split(',').map(v => v.trim());
+                if (c.length >= 4 && !isNaN(parseFloat(c[1]))) {
+                    const pos = { x: parseFloat(c[1]), y: parseFloat(c[2]), z: parseFloat(c[3]) };
+                    const id = "s_" + Date.now() + "_" + i;
+                    spheres.push({ id, type: "sphere", radius: 1.5, position: pos, color: {r:255,g:0,b:0,a:255} });
+                    loadedIds.push(id);
+                    positions.push(pos);
                 }
             });
-
-            if (spheres.length > 0) {
-                try {
-                    // Check if the objects module exists (permission check)
-                    if (connectAPI.viewer && connectAPI.viewer.objects) {
-                        await connectAPI.viewer.objects.add(spheres);
-                        status.innerHTML = `<span class="success">Successfully added ${spheres.length} spheres!</span>`;
-                    } else {
-                        throw new Error("Missing 'viewer.objects' permission.");
-                    }
-                } catch (err) {
-                    status.innerHTML = `<div class="error">Viewer Error: ${err.message}</div>`;
-                }
-            }
+            await connectAPI.viewer.objects.add(spheres);
+            setStat(`Loaded ${spheres.length} spheres.`, "ok");
         }
 
         async function zoomToPoints() {
-            if (pointPositions.length === 0) return;
-            const avg = pointPositions.reduce((acc, p) => ({x: acc.x + p.x, y: acc.y + p.y, z: acc.z + p.z}), {x:0, y:0, z:0});
-            const center = { x: avg.x/pointPositions.length, y: avg.y/pointPositions.length, z: avg.z/pointPositions.length };
-            
-            try {
-                await connectAPI.viewer.camera.setTarget(center);
-            } catch(e) { console.error("Camera error", e); }
+            if (!positions.length) return;
+            const avg = positions.reduce((a, b) => ({x: a.x + b.x, y: a.y + b.y, z: a.z + b.z}), {x:0,y:0,z:0});
+            const center = { x: avg.x/positions.length, y: avg.y/positions.length, z: avg.z/positions.length };
+            await connectAPI.viewer.camera.setTarget(center);
         }
 
         async function clearPoints() {
-            if (loadedObjectIds.length > 0) {
-                try {
-                    await connectAPI.viewer.objects.remove(loadedObjectIds);
-                    loadedObjectIds = [];
-                    pointPositions = [];
-                    document.getElementById('status').innerText = "Spheres cleared.";
-                } catch(e) { document.getElementById('status').innerText = "Error clearing."; }
-            }
+            await connectAPI.viewer.objects.remove(loadedIds);
+            loadedIds = []; positions = [];
+            setStat("Cleared.", "ok");
         }
 
         window.onload = init;
