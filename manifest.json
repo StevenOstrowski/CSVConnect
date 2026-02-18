@@ -1,7 +1,8 @@
 {
   "title": "CSV Point Loader",
   "icon": "https://img.icons8.com/color/48/csv.png",
-  "url": "https://your-hosted-site.com/index.html",
+  "url": "https://stevenostrowski.github.io/CSVConnect/",
   "description": "Loads X,Y,Z points from a CSV into the 3D Viewer.",
   "enabled": true
+
 }
