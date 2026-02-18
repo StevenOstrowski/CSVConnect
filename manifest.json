@@ -1,7 +1,8 @@
 {
-  "title": "CSV Point Loader",
+  "title": "CSV Point Loader v2",
   "icon": "https://img.icons8.com/color/48/csv.png",
-  "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
+  "url": "https://stevenostrowski.github.io/CSVConnect/index.html?v=2",
+  "version": "2.0.0",
   "enabled": true,
   "permissions": [
     "data.read",
@@ -16,4 +17,3 @@
     }
   }
 }
-
