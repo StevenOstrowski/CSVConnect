@@ -67,38 +67,95 @@
             reader.readAsText(file);
         }
 
-        async function processCSV(data) {
-            const rows = data.split(/\r?\n/);
-            const markers = [];
-            pointPositions = [];
+       async function processCSV(data) {
+    const rows = data.split(/\r?\n/);
+    const markers = [];
+    pointPositions = [];
 
-            // Check if there is a 3D context
-            try {
-                const models = await connectAPI.project.getModels();
-                if (!models || models.length === 0) {
-                   // Note: This is a soft check. Usually, we just need the viewer to be active.
-                }
-            } catch(e) { console.log("Model check skipped"); }
+    rows.forEach((row, i) => {
+        const cols = row.split(',');
+        if (cols.length >= 4) {
+            const [name, x, y, z] = cols.map(c => c.trim());
+            const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
+            if (!isNaN(px)) {
+                const id = "pt_" + Date.now() + "_" + i;
+                const pos = { x: px, y: py, z: pz };
+                markers.push({ 
+                    id: id, 
+                    title: name || `Pt ${i}`, 
+                    position: pos, 
+                    color: "#FF0000" 
+                });
+                loadedPointIds.push(id);
+                pointPositions.push(pos);
+            }
+        }
+    });
 
-            rows.forEach((row, i) => {
-                const cols = row.split(',');
-                if (cols.length >= 4) {
-                    const [name, x, y, z] = cols.map(c => c.trim());
-                    const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
-                    if (!isNaN(px)) {
-                        const id = "pt_" + Date.now() + "_" + i;
-                        const pos = { x: px, y: py, z: pz };
-                        markers.push({ 
-                            id: id, 
-                            title: name || `Pt ${i}`, 
-                            position: pos, 
-                            color: "#FF0000" 
-                        });
-                        loadedPointIds.push(id);
-                        pointPositions.push(pos);
-                    }
-                }
-            });
+    if (markers.length > 0) {
+        try {
+            // COMPATIBILITY LAYER: Try all 3 known Trimble API methods for icons
+            if (connectAPI.viewer.icons && typeof connectAPI.viewer.icons.add === 'function') {
+                await connectAPI.viewer.icons.add(markers); // Modern API
+            } else if (typeof connectAPI.viewer.addIcon === 'function') {
+                await connectAPI.viewer.addIcon(markers); // Older API
+            } else if (connectAPI.viewer.objects && typeof connectAPI.viewer.objects.addIcon === 'function') {
+                await connectAPI.viewer.objects.addIcon(markers); // Alternate API
+            } else {
+                throw new Error("Icon module not found. Please check Extension Permissions.");
+            }
+
+            document.getElementById('status').innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
+        } catch (err) {
+            document.getElementById('status').innerHTML = `<span class="error">Viewer Error: ${err.message}</span>`;
+            console.error("Full Error Object:", err);
+        }
+    }
+}async function processCSV(data) {
+    const rows = data.split(/\r?\n/);
+    const markers = [];
+    pointPositions = [];
+
+    rows.forEach((row, i) => {
+        const cols = row.split(',');
+        if (cols.length >= 4) {
+            const [name, x, y, z] = cols.map(c => c.trim());
+            const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
+            if (!isNaN(px)) {
+                const id = "pt_" + Date.now() + "_" + i;
+                const pos = { x: px, y: py, z: pz };
+                markers.push({ 
+                    id: id, 
+                    title: name || `Pt ${i}`, 
+                    position: pos, 
+                    color: "#FF0000" 
+                });
+                loadedPointIds.push(id);
+                pointPositions.push(pos);
+            }
+        }
+    });
+
+    if (markers.length > 0) {
+        try {
+            // COMPATIBILITY LAYER: Try all 3 known Trimble API methods for icons
+            if (connectAPI.viewer.icons && typeof connectAPI.viewer.icons.add === 'function') {
+                await connectAPI.viewer.icons.add(markers); // Modern API
+            } else if (typeof connectAPI.viewer.addIcon === 'function') {
+                await connectAPI.viewer.addIcon(markers); // Older API
+            } else if (connectAPI.viewer.objects && typeof connectAPI.viewer.objects.addIcon === 'function') {
+                await connectAPI.viewer.objects.addIcon(markers); // Alternate API
+            } else {
+                throw new Error("Icon module not found. Please check Extension Permissions.");
+            }
+
+            document.getElementById('status').innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
+        } catch (err) {
+            document.getElementById('status').innerHTML = `<span class="error">Viewer Error: ${err.message}</span>`;
+            console.error("Full Error Object:", err);
+        }
+    }
+}
 
             if (markers.length > 0) {
                 try {
@@ -133,3 +190,4 @@
     </script>
 </body>
 </html>
+
