@@ -4,42 +4,36 @@
     async function init() {
         const statusBox = document.getElementById('status');
         try {
-            // We pass an empty object or specific config to help the handshake
+            // This 'allowedOrigins' line is critical for the Quadri error you saw
             api = await TrimbleConnectWorkspace.connect(
-                window.parent, 
-                (event) => { return true; }, // Authorize all message events
-                30000 // Timeout
+                window.parent,
+                (event) => {
+                    // This tells your app to trust messages from Trimble domains
+                    return event.origin.includes('trimble.com');
+                },
+                30000
             );
             statusBox.innerText = "✅ Connected!";
-            statusBox.className = "success-msg";
+            statusBox.style.color = "green";
         } catch (e) {
-            console.error("Connection failed", e);
-            statusBox.innerText = "❌ Connection Failed - Check Console";
+            statusBox.innerText = "❌ Connection Failed";
+            console.error("Connect error:", e);
         }
     }
 
     async function testSphere() {
-        try {
-            // Force a check of the objects property
-            if (!api.viewer || !api.viewer.objects) {
-                console.error("Available API:", api);
-                alert("Permission Error: 'viewer.objects' not found. Ensure manifest is correctly loaded.");
-                return;
-            }
-
-            const sphere = [{
-                id: "test_" + Date.now(),
-                type: "sphere",
-                radius: 2.0,
-                position: { x: 0, y: 0, z: 0 },
-                color: { r: 0, g: 255, b: 0, a: 255 }
-            }];
-
-            await api.viewer.objects.add(sphere);
-            document.getElementById('status').innerText = "Sphere Created at 0,0,0!";
-        } catch (err) {
-            alert("Viewer Error: " + err.message);
+        if (!api || !api.viewer || !api.viewer.objects) {
+            alert("API not ready or permissions missing!");
+            return;
         }
+        const sphere = [{
+            id: "test_" + Date.now(),
+            type: "sphere",
+            radius: 2.0,
+            position: { x: 0, y: 0, z: 0 },
+            color: { r: 0, g: 255, b: 0, a: 255 }
+        }];
+        await api.viewer.objects.add(sphere);
     }
 
     window.onload = init;
