@@ -6,6 +6,7 @@
   "permissions": [
     "data.read",
     "ui.filepicker",
+    "viewer.icons",
     "viewer.objects"
   ],
   "ui": {
@@ -15,3 +16,4 @@
     }
   }
 }
+
