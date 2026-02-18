@@ -1,225 +1,113 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CSV Point Loader Pro</title>
+    <title>CSV 3D Sphere Loader</title>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #ffffff; color: #333; line-height: 1.5; }
-        
-        h3 { margin-top: 0; color: #0078d4; font-size: 18px; }
-
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #fff; color: #333; }
         #drop-zone {
-            border: 2px dashed #0078d4;
-            border-radius: 8px;
-            padding: 30px 10px;
-            text-align: center;
-            background: #f0f7ff;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-bottom: 15px;
+            border: 2px dashed #0078d4; border-radius: 8px; padding: 25px 10px;
+            text-align: center; background: #f0f7ff; cursor: pointer;
         }
-        #drop-zone:hover, #drop-zone.hover {
-            background: #d0e7ff;
-            border-color: #005a9e;
-        }
-
-        .btn {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 8px;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 13px;
-            color: white;
-        }
+        .btn { color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 2px; margin-top: 8px; font-weight: bold; }
         .btn-zoom { background: #107c10; }
-        .btn-zoom:hover { background: #0b590b; }
         .btn-clear { background: #d83b01; }
-        .btn-clear:hover { background: #a42c01; }
-
-        #status {
-            padding: 10px;
-            margin-top: 10px;
-            font-size: 12px;
-            border-radius: 4px;
-            background: #f3f2f1;
-            min-height: 20px;
-            word-wrap: break-word;
-        }
-        .success { color: #107c10; background: #dff6dd !important; border-left: 4px solid #107c10; }
-        .error { color: #d83b01; background: #fde7e9 !important; border-left: 4px solid #d83b01; }
-
-        .footer-links {
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #edebe9;
-            text-align: center;
-        }
-        .sample-link {
-            font-size: 11px;
-            color: #0078d4;
-            text-decoration: none;
-        }
-        .sample-link:hover { text-decoration: underline; }
+        #status { margin-top: 15px; font-size: 13px; font-weight: 500; }
+        .success { color: #107c10; }
+        .error { color: #d83b01; border-left: 3px solid #d83b01; padding-left: 5px; }
     </style>
 </head>
 <body>
-
-    <h3>CSV Point Loader</h3>
+    <h3>3D Sphere CSV Loader</h3>
     
-    <div id="drop-zone">
-        <p><b>Drag & Drop CSV</b><br>or click to browse</p>
-        <input type="file" id="fileInput" accept=".csv" style="display:none">
+    <div id="drop-zone" onclick="document.getElementById('fileInput').click()">
+        <p><b>Drag & Drop CSV</b><br>to create 3D Spheres</p>
+        <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
     </div>
 
-    <button class="btn btn-zoom" onclick="zoomToPoints()">🔭 Zoom to Points</button>
-    <button class="btn btn-clear" onclick="clearPoints()">🗑️ Clear All Points</button>
+    <div id="status">Connecting...</div>
 
-    <div id="status">Connecting to Trimble Connect...</div>
-
-    <div class="footer-links">
-        <a href="#" class="sample-link" onclick="downloadSample()">📥 Download Template CSV</a>
-    </div>
+    <button class="btn btn-zoom" onclick="zoomToPoints()">🔭 Zoom to Spheres</button>
+    <button class="btn btn-clear" onclick="clearPoints()">🗑️ Clear All</button>
 
     <script>
         let connectAPI;
-        let loadedPointIds = [];
+        let loadedObjectIds = [];
         let pointPositions = [];
 
-        // 1. Initialize API Handshake
         async function init() {
-            const statusEl = document.getElementById('status');
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-                statusEl.innerText = "Connected! Please ensure a model is loaded.";
-            } catch (e) {
-                statusEl.innerHTML = '<span class="error">Connection failed. Are you opening this inside the Trimble 3D Viewer?</span>';
-            }
+                document.getElementById('status').innerText = "Connected! Ready.";
+            } catch (e) { document.getElementById('status').innerText = "Connection failed."; }
         }
-
-        // 2. UI Event Listeners
-        const dz = document.getElementById('drop-zone');
-        const fi = document.getElementById('fileInput');
-
-        dz.onclick = () => fi.click();
-        dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('hover'); };
-        dz.ondragleave = () => dz.classList.remove('hover');
-        dz.ondrop = (e) => {
-            e.preventDefault();
-            dz.classList.remove('hover');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        };
-        fi.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
         function handleFile(file) {
             const reader = new FileReader();
-            reader.onload = (event) => processCSV(event.target.result);
+            reader.onload = (e) => processCSV(e.target.result);
             reader.readAsText(file);
         }
 
-        // 3. Core Logic: Parse CSV and Add Icons
         async function processCSV(data) {
-            const statusEl = document.getElementById('status');
+            const status = document.getElementById('status');
             const rows = data.split(/\r?\n/);
-            const markers = [];
+            const spheres = [];
             pointPositions = [];
 
-            // Skip header and parse rows
             rows.forEach((row, i) => {
                 const cols = row.split(',');
                 if (cols.length >= 4) {
                     const [name, x, y, z] = cols.map(c => c.trim());
                     const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
                     
-                    if (!isNaN(px) && !isNaN(py) && !isNaN(pz)) {
-                        const id = "pt_" + Date.now() + "_" + i;
+                    if (!isNaN(px)) {
+                        const id = "sph_" + Date.now() + "_" + i;
                         const pos = { x: px, y: py, z: pz };
-                        markers.push({ 
-                            id: id, 
-                            title: name || `Pt ${i}`, 
-                            position: pos, 
-                            color: "#FF0000",
-                            size: 35 
+                        
+                        // Define a 3D Sphere Object
+                        spheres.push({
+                            id: id,
+                            type: "sphere",
+                            position: pos,
+                            radius: 0.2, // Size in meters (adjust as needed)
+                            color: { r: 255, g: 0, b: 0, a: 255 } // Solid Red
                         });
-                        loadedPointIds.push(id);
+                        
+                        loadedObjectIds.push(id);
                         pointPositions.push(pos);
                     }
                 }
             });
 
-            if (markers.length > 0) {
+            if (spheres.length > 0) {
                 try {
-                    // Try different API versions/locations for the Icon module
-                    let iconMethod = null;
-                    if (connectAPI.viewer && connectAPI.viewer.icons && typeof connectAPI.viewer.icons.add === 'function') {
-                        iconMethod = connectAPI.viewer.icons.add.bind(connectAPI.viewer.icons);
-                    } else if (connectAPI.viewer && typeof connectAPI.viewer.addIcon === 'function') {
-                        iconMethod = connectAPI.viewer.addIcon.bind(connectAPI.viewer);
-                    }
-
-                    if (iconMethod) {
-                        await iconMethod(markers);
-                        statusEl.className = 'success';
-                        statusEl.innerHTML = `Successfully loaded ${markers.length} points!`;
-                    } else {
-                        throw new Error("Viewer Icons module not found. Did you re-add the extension after updating the manifest?");
-                    }
+                    // Place 3D geometry in the viewer
+                    await connectAPI.viewer.objects.add(spheres);
+                    status.innerHTML = `<span class="success">Successfully added ${spheres.length} spheres!</span>`;
                 } catch (err) {
-                    statusEl.className = 'error';
-                    statusEl.innerHTML = `Viewer Error: ${err.message}`;
-                    console.error("CSV Loader Error:", err);
+                    status.innerHTML = `<div class="error">Viewer Error: ${err.message}</div>`;
                 }
-            } else {
-                statusEl.className = 'error';
-                statusEl.innerText = "No valid data found. Use the template format: Name, X, Y, Z";
             }
         }
 
-        // 4. Utility Functions
         async function zoomToPoints() {
             if (pointPositions.length === 0) return;
             const avg = pointPositions.reduce((acc, p) => ({x: acc.x + p.x, y: acc.y + p.y, z: acc.z + p.z}), {x:0, y:0, z:0});
             const center = { x: avg.x/pointPositions.length, y: avg.y/pointPositions.length, z: avg.z/pointPositions.length };
-            
-            try {
-                await connectAPI.viewer.camera.setTarget(center);
-            } catch (e) {
-                console.error("Camera error:", e);
-            }
+            await connectAPI.viewer.camera.setTarget(center);
         }
 
         async function clearPoints() {
-            const statusEl = document.getElementById('status');
-            if (loadedPointIds.length > 0) {
+            if (loadedObjectIds.length > 0) {
                 try {
-                    // Try both common removal paths
-                    if (connectAPI.viewer.icons && typeof connectAPI.viewer.icons.remove === 'function') {
-                        await connectAPI.viewer.icons.remove(loadedPointIds);
-                    } else if (typeof connectAPI.viewer.removeIcon === 'function') {
-                        await connectAPI.viewer.removeIcon(loadedPointIds);
-                    }
-                    loadedPointIds = [];
+                    await connectAPI.viewer.objects.remove(loadedObjectIds);
+                    loadedObjectIds = [];
                     pointPositions = [];
-                    statusEl.innerText = "All points cleared.";
-                    statusEl.className = '';
-                } catch (e) {
-                    statusEl.innerText = "Error clearing points.";
-                }
+                    document.getElementById('status').innerText = "Spheres cleared.";
+                } catch(e) { document.getElementById('status').innerText = "Error clearing."; }
             }
         }
 
-        function downloadSample() {
-            const content = "Name,X,Y,Z\nColumn_A1,10.5,5.0,0.0\nColumn_B2,15.2,5.0,0.0\nPipe_Start,12.0,8.5,2.5";
-            const blob = new Blob([content], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'sample_points.csv'; a.click();
-        }
-
-        // Start initialization on load
         window.onload = init;
     </script>
 </body>
