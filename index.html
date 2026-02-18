@@ -1,40 +1,60 @@
-<script>
-    let api;
-    
-    async function init() {
-        const statusBox = document.getElementById('status');
-        try {
-            // This 'allowedOrigins' line is critical for the Quadri error you saw
-            api = await TrimbleConnectWorkspace.connect(
-                window.parent,
-                (event) => {
-                    // This tells your app to trust messages from Trimble domains
-                    return event.origin.includes('trimble.com');
-                },
-                30000
-            );
-            statusBox.innerText = "✅ Connected!";
-            statusBox.style.color = "green";
-        } catch (e) {
-            statusBox.innerText = "❌ Connection Failed";
-            console.error("Connect error:", e);
-        }
-    }
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Sphere Loader</title>
+    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; }
+        .btn { background: #0078d4; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; font-weight: bold; }
+        #status { padding: 10px; margin-bottom: 10px; background: #f3f2f1; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="status">🔄 Initializing Handshake...</div>
+    <button class="btn" onclick="testSphere()">Test: Create Green Sphere</button>
 
-    async function testSphere() {
-        if (!api || !api.viewer || !api.viewer.objects) {
-            alert("API not ready or permissions missing!");
-            return;
+    <script>
+        let api;
+        async function init() {
+            const status = document.getElementById('status');
+            try {
+                // The Quadri fix: We explicitly validate the sender's origin
+                api = await TrimbleConnectWorkspace.connect(
+                    window.parent,
+                    (event) => {
+                        // Trust any message coming from a Trimble domain
+                        return event.origin.includes('trimble.com');
+                    },
+                    30000
+                );
+                status.innerText = "✅ Connected to Viewer";
+                status.style.color = "#107c10";
+            } catch (e) {
+                status.innerText = "❌ Connection Failed";
+                console.error("Handshake error:", e);
+            }
         }
-        const sphere = [{
-            id: "test_" + Date.now(),
-            type: "sphere",
-            radius: 2.0,
-            position: { x: 0, y: 0, z: 0 },
-            color: { r: 0, g: 255, b: 0, a: 255 }
-        }];
-        await api.viewer.objects.add(sphere);
-    }
 
-    window.onload = init;
-</script>
+        async function testSphere() {
+            try {
+                if (!api || !api.viewer || !api.viewer.objects) {
+                    alert("Permission Error: viewer.objects not allowed.");
+                    return;
+                }
+                const sphere = [{
+                    id: "test_" + Date.now(),
+                    type: "sphere",
+                    radius: 2.0,
+                    position: { x: 0, y: 0, z: 0 },
+                    color: { r: 0, g: 255, b: 0, a: 255 }
+                }];
+                await api.viewer.objects.add(sphere);
+                document.getElementById('status').innerText = "Sphere Sent to Viewer!";
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
