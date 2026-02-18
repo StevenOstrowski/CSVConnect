@@ -33,26 +33,23 @@
             el.className = isSuccess ? 'success' : '';
         }
 
-   async function pickFile() {
+  async function pickFile() {
     try {
-        // Check if the UI module is available
+        // 1. Check if the UI module was actually injected by Trimble
         if (!connectAPI.ui || typeof connectAPI.ui.showFilePicker !== 'function') {
-            throw new Error("File Picker is not supported in this version of the viewer. Please check extension permissions.");
+            throw new Error("UI FilePicker is not authorized. Please remove and re-add the extension in Project Settings.");
         }
 
         const files = await connectAPI.ui.showFilePicker({
             project: true,
-            multiSelect: false,
-            filter: {
-                extensions: [".csv"]
-            }
+            multiSelect: false
         });
 
         if (files && files.length > 0) {
             const file = files[0];
-            setStatus("Downloading: " + file.name + "...");
+            setStatus("Loading: " + file.name + "...");
 
-            // Use getFileContent which is the most reliable way to bypass CORS
+            // Use the internal data fetcher to bypass CORS
             const fileBlob = await connectAPI.data.getFileContent(file.id);
             const csvData = await fileBlob.text();
             
@@ -98,5 +95,6 @@
     </script>
 </body>
 </html>
+
 
 
