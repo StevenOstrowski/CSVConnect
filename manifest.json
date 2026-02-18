@@ -1,20 +1,17 @@
 {
-  "title": "CSV Point Loader Pro",
-  "icon": "https://img.icons8.com/color/48/csv.png",
-  "url": "https://stevenostrowski.github.io/CSVConnect/index.html?v=1.0.1",
-  "version": "1.0.1",
+  "title": "3D Sphere CSV Loader",
+  "icon": "https://img.icons8.com/color/48/sphere.png",
+  "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
   "enabled": true,
   "permissions": [
-    "viewer.icons",
     "viewer.objects",
-    "viewer.camera",
-    "ui.filepicker",
-    "data.read"
+    "viewer.camera"
   ],
   "ui": {
     "sidebar": {
-      "icon": "https://img.icons8.com/color/48/csv.png",
-      "title": "CSV Loader"
+      "icon": "https://img.icons8.com/color/48/sphere.png",
+      "title": "Sphere Loader"
     }
   }
 }
+
