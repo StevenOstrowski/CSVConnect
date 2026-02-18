@@ -1,133 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CSV Loader - Drag & Drop</title>
+    <title>CSV Loader - Enhanced</title>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 15px; background: #fff; color: #333; }
         #drop-zone {
             border: 2px dashed #0078d4;
             border-radius: 8px;
-            padding: 40px 10px;
+            padding: 30px 10px;
             text-align: center;
             background: #f0f7ff;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: 0.3s;
         }
-        #drop-zone.hover { background: #d0e7ff; border-style: solid; }
-        #status { margin-top: 20px; font-size: 13px; line-height: 1.4; color: #444; }
-        .success { color: #107c10; font-weight: bold; }
-        .error { color: #d83b01; }
-        .instructions { font-size: 11px; color: #888; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
+        #drop-zone.hover { background: #d0e7ff; }
+        .btn-clear { 
+            background: #d83b01; color: white; border: none; padding: 8px; 
+            width: 100%; cursor: pointer; border-radius: 2px; margin-top: 10px; font-weight: bold;
+        }
+        #status { margin-top: 15px; font-size: 13px; min-height: 20px; }
+        .success { color: #107c10; }
+        .sample-link { display: block; margin-top: 20px; font-size: 11px; color: #0078d4; text-decoration: none; }
+        .sample-link:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <h3>CSV Point Loader</h3>
     
-    <div id="drop-zone">
+    <div id="drop-zone" id="dropZone">
         <p><b>Drag & Drop CSV</b><br>or click to browse</p>
         <input type="file" id="fileInput" accept=".csv" style="display:none">
     </div>
 
-    <div id="status">Connecting to 3D Viewer...</div>
+    <button class="btn-clear" onclick="clearPoints()">Clear All Points</button>
 
-    <div class="instructions">
-        <b>Required Format:</b><br>
-        Name, X, Y, Z<br>
-        <i>Note: Coordinates should match model units (usually meters).</i>
-    </div>
+    <div id="status">Connecting...</div>
+
+    <a href="#" class="sample-link" onclick="downloadSample()">📥 Download Sample CSV Template</a>
 
     <script>
         let connectAPI;
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('fileInput');
         const status = document.getElementById('status');
+        let loadedPointIds = [];
 
-        // 1. Initialize Connection
         async function init() {
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-                status.innerText = "Connected! Ready for your CSV file.";
+                status.innerText = "Connected and ready.";
             } catch (e) {
-                status.innerHTML = '<span class="error">Connection failed. Are you in the 3D Viewer?</span>';
+                status.innerText = "Connection failed.";
             }
         }
 
-        // 2. Setup Drag & Drop Listeners
-        dropZone.onclick = () => fileInput.click();
-
-        dropZone.ondragover = (e) => {
+        // Drag & Drop Logic
+        const dz = document.getElementById('drop-zone');
+        const fi = document.getElementById('fileInput');
+        dz.onclick = () => fi.click();
+        dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('hover'); };
+        dz.ondragleave = () => dz.classList.remove('hover');
+        dz.ondrop = (e) => {
             e.preventDefault();
-            dropZone.classList.add('hover');
-        };
-
-        dropZone.ondragleave = () => dropZone.classList.remove('hover');
-
-        dropZone.ondrop = (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('hover');
+            dz.classList.remove('hover');
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         };
+        fi.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
-        fileInput.onchange = (e) => {
-            if (e.target.files.length) handleFile(e.target.files[0]);
-        };
-
-        // 3. Process the File
         function handleFile(file) {
-            if (!file.name.endsWith('.csv')) {
-                status.innerHTML = '<span class="error">Please upload a .csv file.</span>';
-                return;
-            }
-
-            status.innerText = `Reading ${file.name}...`;
             const reader = new FileReader();
-            
-            reader.onload = (event) => {
-                const text = event.target.result;
-                processCSV(text);
-            };
-            
-            reader.onerror = () => {
-                status.innerHTML = '<span class="error">Failed to read file.</span>';
-            };
-
+            reader.onload = (event) => processCSV(event.target.result);
             reader.readAsText(file);
         }
 
         async function processCSV(data) {
             const rows = data.split(/\r?\n/);
             const markers = [];
-
+            
             rows.forEach((row, i) => {
                 const cols = row.split(',');
                 if (cols.length >= 4) {
                     const [name, x, y, z] = cols.map(c => c.trim());
-                    const px = parseFloat(x);
-                    const py = parseFloat(y);
-                    const pz = parseFloat(z);
-
-                    if (!isNaN(px) && !isNaN(py) && !isNaN(pz)) {
-                        markers.push({
-                            id: "pt_" + i + "_" + Date.now(),
-                            title: name || `Point ${i}`,
-                            position: { x: px, y: py, z: pz },
-                            color: "#FF0000" // Red markers
-                        });
+                    const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
+                    if (!isNaN(px)) {
+                        const id = "pt_" + Date.now() + "_" + i;
+                        markers.push({ id, title: name || `Pt ${i}`, position: { x: px, y: py, z: pz }, color: "#FF0000" });
+                        loadedPointIds.push(id);
                     }
                 }
             });
 
             if (markers.length > 0) {
-                try {
-                    await connectAPI.viewer.addIcon(markers);
-                    status.innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
-                } catch (err) {
-                    status.innerHTML = `<span class="error">Viewer Error: ${err.message}</span>`;
-                }
-            } else {
-                status.innerHTML = '<span class="error">No valid X,Y,Z data found. Check your CSV format.</span>';
+                await connectAPI.viewer.addIcon(markers);
+                status.innerHTML = `<span class="success">Loaded ${markers.length} points!</span>`;
             }
+        }
+
+        async function clearPoints() {
+            if (loadedPointIds.length > 0) {
+                await connectAPI.viewer.removeIcon(loadedPointIds);
+                loadedPointIds = [];
+                status.innerText = "All points cleared.";
+            }
+        }
+
+        function downloadSample() {
+            const content = "Name,X,Y,Z\nPoint1,10,10,2\nPoint2,20,15,5";
+            const blob = new Blob([content], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'template.csv');
+            a.click();
         }
 
         init();
