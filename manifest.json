@@ -1,10 +1,12 @@
 {
-  "title": "CSV Point Loader",
+  "title": "CSV Point Loader Pro",
   "icon": "https://img.icons8.com/color/48/csv.png",
   "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
   "enabled": true,
   "permissions": [
-    "viewer.objects"
+    "viewer.icons",
+    "viewer.objects",
+    "viewer.camera"
   ],
   "ui": {
     "sidebar": {
