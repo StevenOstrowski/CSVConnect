@@ -18,25 +18,25 @@
     <script>
         let connectAPI;
 
-    async function init() {
-    try {
-        connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-        
-        // Let's log exactly what we have access to
-        const hasUI = !!connectAPI.ui;
-        const hasPicker = hasUI && typeof connectAPI.ui.showFilePicker === 'function';
-        const hasData = !!connectAPI.data;
-
-        if (hasPicker) {
-            setStatus("Connected! Permissions granted.", true);
-        } else {
-            setStatus(`Debug: UI=${hasUI}, Picker=${hasPicker}, Data=${hasData}. 
-            (If Picker is false, Trimble is ignoring your manifest permissions.)`);
-        }
-    } catch (e) {
-        setStatus("Connection failed: " + e.message);
-    }
-}
+async function init() {
+        try {
+            // Start the connection
+            connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
+            
+            // This checks exactly what Trimble has allowed
+            const uiModule = connectAPI.ui;
+            const hasPicker = uiModule && typeof uiModule.showFilePicker === 'function';
+            
+            if (hasPicker) {
+                setStatus("Connected! Permissions granted.", true);
+            } else {
+                // If this shows up, Trimble is ignoring your manifest.json permissions
+                setStatus("Handshake OK, but Picker is MISSING. \nTry deleting and re-adding the extension in Settings.");
+            }
+        } catch (e) {
+            setStatus("Connection failed: " + e.message);
+        }
+    }
 
         function setStatus(msg, isSuccess = false) {
             const el = document.getElementById('status');
@@ -106,3 +106,4 @@
     </script>
 </body>
 </html>
+
