@@ -18,14 +18,14 @@
         .btn-clear { background: #d83b01; }
         #status { margin-top: 15px; font-size: 13px; font-weight: 500; }
         .success { color: #107c10; }
-        .error { color: #d83b01; }
+        .error { color: #d83b01; border-left: 3px solid #d83b01; padding-left: 5px; }
         .sample-link { display: block; margin-top: 20px; font-size: 11px; color: #0078d4; text-decoration: none; text-align: center;}
     </style>
 </head>
 <body>
     <h3>CSV Point Loader</h3>
     
-    <div id="drop-zone" id="dropZone">
+    <div id="drop-zone">
         <p><b>Drag & Drop CSV</b><br>or click to browse</p>
         <input type="file" id="fileInput" accept=".csv" style="display:none">
     </div>
@@ -35,8 +35,6 @@
     <button class="btn btn-zoom" onclick="zoomToPoints()">🔭 Zoom to Points</button>
     <button class="btn btn-clear" onclick="clearPoints()">🗑️ Clear All</button>
 
-    <a href="#" class="sample-link" onclick="downloadSample()">📥 Download Template</a>
-
     <script>
         let connectAPI;
         let loadedPointIds = [];
@@ -45,7 +43,7 @@
         async function init() {
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-                document.getElementById('status').innerText = "Connected! Ready for file.";
+                document.getElementById('status').innerText = "Connected! Please ensure a model is visible.";
             } catch (e) { 
                 document.getElementById('status').innerText = "Connection failed."; 
             }
@@ -74,6 +72,14 @@
             const markers = [];
             pointPositions = [];
 
+            // Check if there is a 3D context
+            try {
+                const models = await connectAPI.project.getModels();
+                if (!models || models.length === 0) {
+                   // Note: This is a soft check. Usually, we just need the viewer to be active.
+                }
+            } catch(e) { console.log("Model check skipped"); }
+
             rows.forEach((row, i) => {
                 const cols = row.split(',');
                 if (cols.length >= 4) {
@@ -96,11 +102,11 @@
 
             if (markers.length > 0) {
                 try {
-                    // Modern API call
                     await connectAPI.viewer.icons.add(markers);
                     document.getElementById('status').innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
                 } catch (err) {
-                    document.getElementById('status').innerHTML = `<span class="error">Viewer Error: ${err.message || 'Check permissions'}</span>`;
+                    // This is where the "No models loaded" error usually surfaces
+                    document.getElementById('status').innerHTML = `<span class="error">Viewer Error: ${err.message}<br>Make sure at least one model is visible in the viewer!</span>`;
                 }
             }
         }
@@ -114,19 +120,13 @@
 
         async function clearPoints() {
             if (loadedPointIds.length > 0) {
-                await connectAPI.viewer.icons.remove(loadedPointIds);
-                loadedPointIds = [];
-                pointPositions = [];
-                document.getElementById('status').innerText = "Cleared.";
+                try {
+                    await connectAPI.viewer.icons.remove(loadedPointIds);
+                    loadedPointIds = [];
+                    pointPositions = [];
+                    document.getElementById('status').innerText = "Cleared.";
+                } catch(e) { document.getElementById('status').innerText = "Error clearing."; }
             }
-        }
-
-        function downloadSample() {
-            const content = "Name,X,Y,Z\nPoint1,10,10,2\nPoint2,20,15,5";
-            const blob = new Blob([content], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = 'template.csv'; a.click();
         }
 
         init();
