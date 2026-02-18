@@ -1,13 +1,11 @@
 {
-  "title": "CSV Sphere Loader Pro",
-  "icon": "https://img.icons8.com/color/48/sphere.png",
-  "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
-  "enabled": true,
+  "title": "3D Sphere Loader",
   "permissions": [
     "viewer.objects",
-    "viewer.camera",
-    "viewer.icons"
+    "viewer.camera"
   ],
+  "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
+  "enabled": true,
   "ui": {
     "sidebar": {
       "icon": "https://img.icons8.com/color/48/sphere.png",
