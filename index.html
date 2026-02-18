@@ -4,69 +4,95 @@
     <title>Trimble Connect CSV Loader</title>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 15px; color: #333; }
-        .btn { background: #0078d4; color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; }
-        .help { font-size: 0.8em; color: #666; margin-top: 10px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: #f9f9f9; }
+        .btn { background: #0078d4; color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 4px; font-weight: bold; margin-bottom: 10px;}
+        .btn:hover { background: #005a9e; }
+        .status { font-size: 0.85em; color: #555; border-left: 3px solid #0078d4; padding-left: 8px; margin-top: 15px; }
+        .help { font-size: 0.75em; color: #888; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h3>Load CSV Points</h3>
-    <input type="file" id="csvFile" accept=".csv" /><br><br>
-    <button class="btn" onclick="processCSV()">Show Points in 3D</button>
+    <h3>Project CSV Loader</h3>
+    <button class="btn" onclick="pickAndLoadCSV()">Select CSV from Project</button>
     
+    <div id="status" class="status">Waiting for selection...</div>
+
     <div class="help">
-        CSV format should be: <b>Name, X, Y, Z</b><br>
-        (e.g., Point1, 150.5, 200.1, 10.0)
+        <b>Expected Format:</b><br>
+        Name, X, Y, Z (no header or 1st row header)
     </div>
 
     <script>
         let connectAPI;
 
-        // 1. Initialize Connection to Trimble Connect
         async function init() {
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-                console.log("Connected to Trimble Connect Viewer");
+                document.getElementById('status').innerText = "Connected to Trimble Connect.";
             } catch (e) {
-                console.error("Connection failed", e);
+                document.getElementById('status').innerText = "Error: Could not connect to Viewer.";
             }
         }
 
-        // 2. Parse CSV and Add Markers
-        async function processCSV() {
-            const fileInput = document.getElementById('csvFile');
-            if (!fileInput.files.length) return alert("Select a file first!");
+        async function pickAndLoadCSV() {
+            try {
+                // 1. Open the Trimble Connect File Picker
+                const selection = await connectAPI.ui.showFilePicker();
+                
+                if (!selection || selection.length === 0) return;
+                
+                const file = selection[0];
+                if (!file.name.endsWith('.csv')) {
+                    alert("Please select a .csv file.");
+                    return;
+                }
 
-            const file = fileInput.files[0];
-            const reader = new FileReader();
+                document.getElementById('status').innerText = `Loading: ${file.name}...`;
 
-            reader.onload = async (e) => {
-                const text = e.target.result;
-                const rows = text.split('\n').slice(1); // Skip header
-                const markers = [];
+                // 2. Get the download URL for the selected file
+                const fileData = await connectAPI.data.getFileDownloadUrl(file.id);
+                
+                // 3. Fetch the content of the CSV
+                const response = await fetch(fileData.url);
+                const csvText = await response.text();
+                
+                processCSVData(csvText);
 
-                rows.forEach((row, index) => {
-                    const cols = row.split(',');
-                    if (cols.length >= 4) {
-                        const [name, x, y, z] = cols.map(c => c.trim());
+            } catch (err) {
+                console.error(err);
+                document.getElementById('status').innerText = "Error loading file.";
+            }
+        }
+
+        async function processCSVData(text) {
+            const rows = text.split(/\r?\n/);
+            const markers = [];
+
+            // Simple loop to parse: Name, X, Y, Z
+            rows.forEach((row, index) => {
+                const cols = row.split(',');
+                if (cols.length >= 4) {
+                    const [name, x, y, z] = cols.map(c => c.trim());
+                    // Skip if X, Y, or Z are not numbers (handles headers)
+                    if (!isNaN(parseFloat(x))) {
                         markers.push({
                             id: "point_" + index,
                             title: name,
                             position: { x: parseFloat(x), y: parseFloat(y), z: parseFloat(z) },
-                            color: "#FF0000", // Red color for the points
+                            color: "#FF0000",
                             icon: "https://img.icons8.com/ios-filled/50/marker.png"
                         });
                     }
-                });
-
-                if (markers.length > 0) {
-                    // 3. Send points to the 3D Viewer
-                    await connectAPI.viewer.addIcon(markers);
-                    alert(`Loaded ${markers.length} points!`);
                 }
-            };
+            });
 
-            reader.readAsText(file);
+            if (markers.length > 0) {
+                // 4. Add the icons to the 3D Viewer
+                await connectAPI.viewer.addIcon(markers);
+                document.getElementById('status').innerText = `Successfully loaded ${markers.length} points!`;
+            } else {
+                document.getElementById('status').innerText = "No valid points found in CSV.";
+            }
         }
 
         init();
