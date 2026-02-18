@@ -2,7 +2,6 @@
   "title": "CSV Sphere Loader Pro",
   "icon": "https://img.icons8.com/color/48/sphere.png",
   "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
-  "version": "1.0.5",
   "enabled": true,
   "permissions": [
     "viewer.objects",
