@@ -1,69 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CSV Loader - Enhanced</title>
+    <title>CSV Loader Pro</title>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 15px; background: #fff; color: #333; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; background: #fff; color: #333; }
         #drop-zone {
-            border: 2px dashed #0078d4;
-            border-radius: 8px;
-            padding: 30px 10px;
-            text-align: center;
-            background: #f0f7ff;
-            cursor: pointer;
-            transition: 0.3s;
+            border: 2px dashed #0078d4; border-radius: 8px; padding: 25px 10px;
+            text-align: center; background: #f0f7ff; cursor: pointer; transition: 0.3s;
         }
         #drop-zone.hover { background: #d0e7ff; }
-        .btn-clear { 
-            background: #d83b01; color: white; border: none; padding: 8px; 
-            width: 100%; cursor: pointer; border-radius: 2px; margin-top: 10px; font-weight: bold;
+        .btn { 
+            color: white; border: none; padding: 10px; 
+            width: 100%; cursor: pointer; border-radius: 2px; margin-top: 8px; font-weight: bold;
         }
-        #status { margin-top: 15px; font-size: 13px; min-height: 20px; }
+        .btn-zoom { background: #107c10; }
+        .btn-clear { background: #d83b01; }
+        #status { margin-top: 15px; font-size: 13px; font-weight: 500; }
         .success { color: #107c10; }
-        .sample-link { display: block; margin-top: 20px; font-size: 11px; color: #0078d4; text-decoration: none; }
-        .sample-link:hover { text-decoration: underline; }
+        .sample-link { display: block; margin-top: 20px; font-size: 11px; color: #0078d4; text-decoration: none; text-align: center;}
     </style>
 </head>
 <body>
     <h3>CSV Point Loader</h3>
     
-    <div id="drop-zone" id="dropZone">
+    <div id="drop-zone">
         <p><b>Drag & Drop CSV</b><br>or click to browse</p>
         <input type="file" id="fileInput" accept=".csv" style="display:none">
     </div>
 
-    <button class="btn-clear" onclick="clearPoints()">Clear All Points</button>
+    <div id="status">Connected! Ready.</div>
 
-    <div id="status">Connecting...</div>
+    <button class="btn btn-zoom" onclick="zoomToPoints()">🔭 Zoom to Points</button>
+    <button class="btn btn-clear" onclick="clearPoints()">🗑️ Clear All</button>
 
-    <a href="#" class="sample-link" onclick="downloadSample()">📥 Download Sample CSV Template</a>
+    <a href="#" class="sample-link" onclick="downloadSample()">📥 Download CSV Template</a>
 
     <script>
         let connectAPI;
-        const status = document.getElementById('status');
+        let pointPositions = [];
         let loadedPointIds = [];
 
         async function init() {
             try {
                 connectAPI = await TrimbleConnectWorkspace.connect(window.parent);
-                status.innerText = "Connected and ready.";
-            } catch (e) {
-                status.innerText = "Connection failed.";
-            }
+            } catch (e) { document.getElementById('status').innerText = "Connection failed."; }
         }
 
-        // Drag & Drop Logic
+        // File Handling
         const dz = document.getElementById('drop-zone');
         const fi = document.getElementById('fileInput');
         dz.onclick = () => fi.click();
         dz.ondragover = (e) => { e.preventDefault(); dz.classList.add('hover'); };
         dz.ondragleave = () => dz.classList.remove('hover');
-        dz.ondrop = (e) => {
-            e.preventDefault();
-            dz.classList.remove('hover');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        };
+        dz.ondrop = (e) => { e.preventDefault(); dz.classList.remove('hover'); if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]); };
         fi.onchange = (e) => { if (e.target.files.length) handleFile(e.target.files[0]); };
 
         function handleFile(file) {
@@ -75,7 +65,8 @@
         async function processCSV(data) {
             const rows = data.split(/\r?\n/);
             const markers = [];
-            
+            pointPositions = [];
+
             rows.forEach((row, i) => {
                 const cols = row.split(',');
                 if (cols.length >= 4) {
@@ -83,23 +74,43 @@
                     const px = parseFloat(x), py = parseFloat(y), pz = parseFloat(z);
                     if (!isNaN(px)) {
                         const id = "pt_" + Date.now() + "_" + i;
-                        markers.push({ id, title: name || `Pt ${i}`, position: { x: px, y: py, z: pz }, color: "#FF0000" });
+                        const pos = { x: px, y: py, z: pz };
+                        markers.push({ 
+                            id, 
+                            title: name || `Pt ${i}`, 
+                            position: pos, 
+                            color: "#FF0000",
+                            size: 40 // Larger markers
+                        });
                         loadedPointIds.push(id);
+                        pointPositions.push(pos);
                     }
                 }
             });
 
             if (markers.length > 0) {
-                await connectAPI.viewer.addIcon(markers);
-                status.innerHTML = `<span class="success">Loaded ${markers.length} points!</span>`;
+                // Use the modern icons.add API
+                await connectAPI.viewer.icons.add(markers);
+                document.getElementById('status').innerHTML = `<span class="success">Successfully loaded ${markers.length} points!</span>`;
             }
+        }
+
+        async function zoomToPoints() {
+            if (pointPositions.length === 0) return;
+            // Calculate center of points
+            const avg = pointPositions.reduce((acc, p) => ({x: acc.x + p.x, y: acc.y + p.y, z: acc.z + p.z}), {x:0, y:0, z:0});
+            const center = { x: avg.x/pointPositions.length, y: avg.y/pointPositions.length, z: avg.z/pointPositions.length };
+            
+            // Tell the viewer to look at the center of the points
+            await connectAPI.viewer.camera.setTarget(center);
         }
 
         async function clearPoints() {
             if (loadedPointIds.length > 0) {
-                await connectAPI.viewer.removeIcon(loadedPointIds);
+                await connectAPI.viewer.icons.remove(loadedPointIds);
                 loadedPointIds = [];
-                status.innerText = "All points cleared.";
+                pointPositions = [];
+                document.getElementById('status').innerText = "Points cleared.";
             }
         }
 
@@ -108,9 +119,7 @@
             const blob = new Blob([content], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.setAttribute('href', url);
-            a.setAttribute('download', 'template.csv');
-            a.click();
+            a.href = url; a.download = 'template.csv'; a.click();
         }
 
         init();
