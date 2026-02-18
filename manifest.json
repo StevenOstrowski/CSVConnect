@@ -1,15 +1,10 @@
 {
   "title": "Sphere Loader",
   "url": "https://stevenostrowski.github.io/CSVConnect/index.html",
+  "icon": "https://img.icons8.com/color/48/sphere.png",
   "enabled": true,
-  "version": "2.0.0",
   "permissions": [
     "viewer.objects",
     "viewer.camera"
-  ],
-  "ui": {
-    "sidebar": {
-      "title": "Sphere Loader"
-    }
-  }
+  ]
 }
