@@ -1,8 +1,11 @@
 {
-  "title": "CSV Point Loader",
+  "title": "Project CSV Loader",
   "icon": "https://img.icons8.com/color/48/csv.png",
-  "url": "https://stevenostrowski.github.io/CSVConnect/",
-  "description": "Loads X,Y,Z points from a CSV into the 3D Viewer.",
-  "enabled": true
-
+  "url": "https://[your-username].github.io/[repo-name]/index.html",
+  "description": "Loads points from a CSV stored within the project folders.",
+  "enabled": true,
+  "permissions": [
+    "data.read",
+    "ui.filepicker"
+  ]
 }
