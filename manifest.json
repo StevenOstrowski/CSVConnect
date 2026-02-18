@@ -5,8 +5,7 @@
   "permissions": [
     "viewer.objects",
     "viewer.camera",
-    "viewer.icons",
-    "viewer.selection"
+    "viewer.icons"
   ],
   "ui": {
     "sidebar": {
