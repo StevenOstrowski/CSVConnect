@@ -33,34 +33,36 @@
             el.className = isSuccess ? 'success' : '';
         }
 
-      async function pickFile() {
-            try {
-                const files = await connectAPI.ui.showFilePicker();
-                if (!files || files.length === 0) return;
-                
-                const file = files[0];
-                setStatus("Downloading: " + file.name + "...");
-
-                // NEW METHOD: Use the API to get the file stream/blob directly
-                // This avoids CORS issues because the Parent (Trimble) does the work
-                const fileBlob = await connectAPI.data.getFileContent(file.id);
-                
-                // Convert the blob to text
-                const csvData = await fileBlob.text();
-                
-                setStatus("Parsing data...");
-                processCSV(csvData);
-
-            } catch (err) {
-                console.error(err);
-                setStatus("Error: " + err.message);
-                // If it fails, let's see if it's a permission issue
-                if(err.message.includes("permission")) {
-                    setStatus("Error: Extension needs 'data.read' permission in manifest.");
-                }
-            }
+   async function pickFile() {
+    try {
+        // Check if the UI module is available
+        if (!connectAPI.ui || typeof connectAPI.ui.showFilePicker !== 'function') {
+            throw new Error("File Picker is not supported in this version of the viewer. Please check extension permissions.");
         }
 
+        const files = await connectAPI.ui.showFilePicker({
+            project: true,
+            multiSelect: false,
+            filter: {
+                extensions: [".csv"]
+            }
+        });
+
+        if (files && files.length > 0) {
+            const file = files[0];
+            setStatus("Downloading: " + file.name + "...");
+
+            // Use getFileContent which is the most reliable way to bypass CORS
+            const fileBlob = await connectAPI.data.getFileContent(file.id);
+            const csvData = await fileBlob.text();
+            
+            processCSV(csvData);
+        }
+    } catch (err) {
+        console.error("PickFile Error:", err);
+        setStatus("Error: " + err.message);
+    }
+}
         async function processCSV(data) {
             const rows = data.split(/\r?\n/);
             const markers = [];
@@ -96,4 +98,5 @@
     </script>
 </body>
 </html>
+
 
