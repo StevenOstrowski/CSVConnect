@@ -1,59 +1,91 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>3D Sphere Loader</title>
+    <title>3D Sphere CSV Loader</title>
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; padding: 15px; }
-        .btn { background: #0078d4; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; font-weight: bold; }
-        #status { padding: 10px; margin-bottom: 10px; background: #f3f2f1; border-radius: 4px; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; padding: 15px; color: #333; }
+        #drop-zone {
+            border: 2px dashed #0078d4; border-radius: 8px; padding: 25px;
+            text-align: center; background: #f0f7ff; cursor: pointer; margin-bottom: 15px;
+        }
+        .control-group { margin: 10px 0; padding: 10px; background: #f3f2f1; border-radius: 4px; }
+        .btn { color: white; border: none; padding: 10px; width: 100%; cursor: pointer; border-radius: 2px; font-weight: bold; margin-bottom: 5px; }
+        #status { padding: 10px; margin-bottom: 10px; border-radius: 4px; font-weight: bold; font-size: 13px; }
+        input[type="range"] { width: 100%; }
     </style>
 </head>
 <body>
-    <div id="status">🔄 Initializing Handshake...</div>
-    <button class="btn" onclick="testSphere()">Test: Create Green Sphere</button>
+    <div id="status" style="background: #eee;">🔄 Initializing...</div>
+
+    <div id="drop-zone" onclick="document.getElementById('fileInput').click()">
+        <strong>Drag & Drop CSV</strong><br>or click to browse
+        <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFile(this.files[0])">
+    </div>
+
+    <div class="control-group">
+        <label>Sphere Size: <span id="rVal">0.2</span>m</label>
+        <input type="range" id="radius" min="0.05" max="5.0" step="0.05" value="0.2" oninput="document.getElementById('rVal').innerText=this.value">
+    </div>
+
+    <button class="btn" style="background:#107c10" onclick="zoomToPoints()">🔭 Zoom to Spheres</button>
+    <button class="btn" style="background:#d83b01" onclick="clearPoints()">🗑️ Clear All</button>
 
     <script>
         let api;
+        let sphereIds = [];
+        let points = [];
+
         async function init() {
             const status = document.getElementById('status');
             try {
-                // The Quadri fix: We explicitly validate the sender's origin
-                api = await TrimbleConnectWorkspace.connect(
-                    window.parent,
-                    (event) => {
-                        // Trust any message coming from a Trimble domain
-                        return event.origin.includes('trimble.com');
-                    },
-                    30000
-                );
+                api = await TrimbleConnectWorkspace.connect(window.parent, (e) => e.origin.includes('trimble.com'), 30000);
                 status.innerText = "✅ Connected to Viewer";
-                status.style.color = "#107c10";
-            } catch (e) {
-                status.innerText = "❌ Connection Failed";
-                console.error("Handshake error:", e);
+                status.style.background = "#dff6dd";
+            } catch (e) { status.innerText = "❌ Connection Failed"; }
+        }
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => processCSV(e.target.result);
+            reader.readAsText(file);
+        }
+
+        async function processCSV(data) {
+            const radius = parseFloat(document.getElementById('radius').value);
+            const rows = data.split(/\r?\n/);
+            const batch = [];
+            
+            rows.forEach((row, i) => {
+                const cols = row.split(',').map(v => v.trim());
+                if (cols.length >= 4 && !isNaN(parseFloat(cols[1]))) {
+                    const pos = { x: parseFloat(cols[1]), y: parseFloat(cols[2]), z: parseFloat(cols[3]) };
+                    const id = "s_" + Date.now() + "_" + i;
+                    batch.push({ id, type: "sphere", radius, position: pos, color: {r:255, g:0, b:0, a:255} });
+                    sphereIds.push(id);
+                    points.push(pos);
+                }
+            });
+
+            if (batch.length > 0) {
+                await api.viewer.objects.add(batch);
+                document.getElementById('status').innerText = `Added ${batch.length} Spheres`;
             }
         }
 
-        async function testSphere() {
-            try {
-                if (!api || !api.viewer || !api.viewer.objects) {
-                    alert("Permission Error: viewer.objects not allowed.");
-                    return;
-                }
-                const sphere = [{
-                    id: "test_" + Date.now(),
-                    type: "sphere",
-                    radius: 2.0,
-                    position: { x: 0, y: 0, z: 0 },
-                    color: { r: 0, g: 255, b: 0, a: 255 }
-                }];
-                await api.viewer.objects.add(sphere);
-                document.getElementById('status').innerText = "Sphere Sent to Viewer!";
-            } catch (err) {
-                alert("Error: " + err.message);
-            }
+        async function zoomToPoints() {
+            if (!points.length) return;
+            const avg = points.reduce((a, b) => ({x: a.x + b.x, y: a.y + b.y, z: a.z + b.z}), {x:0, y:0, z:0});
+            const center = { x: avg.x/points.length, y: avg.y/points.length, z: avg.z/points.length };
+            await api.viewer.camera.setTarget(center);
         }
+
+        async function clearPoints() {
+            if (sphereIds.length) await api.viewer.objects.remove(sphereIds);
+            sphereIds = []; points = [];
+            document.getElementById('status').innerText = "Spheres Cleared";
+        }
+
         window.onload = init;
     </script>
 </body>
